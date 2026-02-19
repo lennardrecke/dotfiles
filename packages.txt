@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────
+#  packages.txt  –  packages to install
+#  Used by install.sh (pacman + AUR via yay)
+# ─────────────────────────────────────────
+
+# ── CLI Essentials ────────────────────────
+git
+zsh
+tmux
+neovim
+curl
+wget
+ripgrep
+fd
+fzf
+bat
+eza
+zoxide
+starship
+stow
+
+# ── Development Tools ─────────────────────
+base-devel
+nodejs
+npm
+bun
+docker
+docker-compose
+
+# ── Desktop Apps ─────────────────────────
+ghostty
+chromium
+spotify-launcher
+
+# ── Fonts & Theming ───────────────────────
+ttf-jetbrains-mono-nerd
+ttf-fira-code
+noto-fonts
+noto-fonts-emoji
