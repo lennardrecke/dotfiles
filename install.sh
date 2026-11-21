@@ -162,6 +162,18 @@ stow_configs() {
   info "Dotfiles linked."
 }
 
+setup_zdotdir() {
+  # zsh only reads ~/.zshenv by default; point it at ~/.config/zsh
+  local zshenv="$HOME/.zshenv"
+  local line='export ZDOTDIR="$HOME/.config/zsh"'
+  if [[ -f "$zshenv" ]] && grep -qF "$line" "$zshenv"; then
+    info "ZDOTDIR already set in ~/.zshenv."
+  else
+    echo "$line" >>"$zshenv"
+    info "Set ZDOTDIR in ~/.zshenv → zsh will load ~/.config/zsh/.zshrc."
+  fi
+}
+
 set_shell() {
   if [[ "$SHELL" != "$(which zsh)" ]]; then
     warn "Changing default shell to zsh…"
@@ -221,6 +233,7 @@ main() {
   install_packages
   backup_configs
   stow_configs
+  setup_zdotdir
   set_shell
   enable_docker
 

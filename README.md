@@ -22,7 +22,7 @@ The script will:
 2. Install packages from `packages.txt`
 3. Back up existing configs to `~/.config-backup-YYYYMMDD_HHMMSS/`
 4. Symlink dotfiles using GNU Stow
-5. Set zsh as the default shell
+5. Set `ZDOTDIR` in `~/.zshenv` (so zsh loads `~/.config/zsh/.zshrc`) and make zsh the default shell
 6. Enable Docker (if systemd is running)
 
 ### Options
