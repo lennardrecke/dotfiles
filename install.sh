@@ -2,11 +2,24 @@
 # ─────────────────────────────────────────
 #  install.sh  –  dotfiles bootstrap
 #  Arch Linux / pacman + yay (AUR)
+#  Works on bare-metal Arch and Arch on WSL.
+#
+#  Usage: ./install.sh [--wsl | --desktop] [--minimal]
+#    --wsl      force WSL mode (CLI packages only, no systemd/GUI)
+#    --desktop  force desktop mode even if WSL is detected
+#    --minimal  only install the "core" package group
 # ─────────────────────────────────────────
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGES_FILE="$DOTFILES_DIR/packages.txt"
+
+# Never install packages matching this (desktop environments etc.), even if
+# they end up in packages.txt. Applied in WSL / minimal mode.
+EXCLUDE_REGEX='^(kde|plasma|kf[56]-|qt[56]-|sddm|xorg|wayland|xdg-desktop-portal|pipewire|wireplumber|gnome)'
+
+IS_WSL=0
+MINIMAL=0
 
 # ── Colours ───────────────────────────────
 GREEN='\033[0;32m'
@@ -25,6 +38,54 @@ require_arch() {
   [[ -f /etc/arch-release ]] || error "This script is for Arch Linux only."
 }
 
+require_non_root() {
+  # makepkg (used for yay/AUR) refuses to run as root – common on fresh WSL.
+  if [[ $EUID -eq 0 ]]; then
+    error "Run as a regular user with sudo access, not root.
+    On WSL: create a user (useradd -m -G wheel <name>, passwd <name>,
+    enable %wheel in /etc/sudoers) and set it as default in /etc/wsl.conf:
+      [user]
+      default=<name>"
+  fi
+}
+
+detect_wsl() {
+  if [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+has_systemd() {
+  [[ "$(ps -p 1 -o comm= 2>/dev/null)" == "systemd" ]]
+}
+
+parse_args() {
+  local force_mode=""
+  for arg in "$@"; do
+    case "$arg" in
+    --wsl) force_mode=wsl ;;
+    --desktop) force_mode=desktop ;;
+    --minimal) MINIMAL=1 ;;
+    -h | --help)
+      sed -n '3,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *) error "Unknown option: $arg" ;;
+    esac
+  done
+
+  case "$force_mode" in
+  wsl) IS_WSL=1 ;;
+  desktop) IS_WSL=0 ;;
+  *) detect_wsl && IS_WSL=1 ;;
+  esac
+
+  # WSL never gets the desktop group
+  [[ $IS_WSL -eq 1 ]] && MINIMAL=1
+  return 0
+}
+
 install_yay() {
   if ! command -v yay &>/dev/null; then
     warn "yay not found – installing from AUR…"
@@ -40,8 +101,21 @@ install_yay() {
 }
 
 parse_packages() {
-  # Strip comments and blank lines
-  grep -v '^\s*#' "$PACKAGES_FILE" | grep -v '^\s*$'
+  # Print packages, honouring "# @group <name>" markers.
+  # In minimal mode only the "core" group is printed.
+  awk -v minimal="$MINIMAL" '
+    /^[[:space:]]*#[[:space:]]*@group[[:space:]]+/ { group = $3; next }
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      if (group == "") group = "core"
+      if (minimal == 1 && group != "core") next
+      print $1
+    }
+  ' "$PACKAGES_FILE" | if [[ $MINIMAL -eq 1 ]]; then
+    grep -Ev "$EXCLUDE_REGEX" || true
+  else
+    cat
+  fi
 }
 
 install_packages() {
@@ -78,11 +152,11 @@ backup_configs() {
 
 stow_configs() {
   info "Symlinking dotfiles with stow…"
-  cd "$DOTFILES_DIR"
-  for dir in .config/*/; do
+  mkdir -p "$HOME/.config"
+  for dir in "$DOTFILES_DIR"/.config/*/; do
     app=$(basename "$dir")
     mkdir -p "$HOME/.config/$app"
-    stow --target="$HOME" --dir="$DOTFILES_DIR" --stow "$(basename "$dir")" 2>/dev/null ||
+    stow --dir="$DOTFILES_DIR/.config" --target="$HOME/.config/$app" --stow "$app" 2>/dev/null ||
       warn "Could not stow $app (conflicts?) – skipping."
   done
   info "Dotfiles linked."
@@ -99,14 +173,32 @@ set_shell() {
 }
 
 enable_docker() {
-  info "Enabling Docker service…"
-  sudo systemctl enable --now docker
+  if ! command -v docker &>/dev/null; then
+    warn "docker not installed – skipping Docker setup."
+    return
+  fi
+
   sudo usermod -aG docker "$USER"
+
+  if has_systemd; then
+    info "Enabling Docker service…"
+    sudo systemctl enable --now docker
+  elif [[ $IS_WSL -eq 1 ]]; then
+    warn "systemd is not running in this WSL distro – Docker service not enabled."
+    warn "  Add the following to /etc/wsl.conf, then run 'wsl --shutdown' from Windows:"
+    warn "    [boot]"
+    warn "    systemd=true"
+    warn "  (Or use Docker Desktop's WSL integration instead.)"
+  else
+    warn "systemd not detected – start the Docker daemon manually."
+  fi
   warn "Log out and back in for Docker group to take effect."
 }
 
 # ── Main ──────────────────────────────────
 main() {
+  parse_args "$@"
+
   echo ""
   echo "  ██████╗  ██████╗ ████████╗███████╗██╗██╗     ███████╗███████╗"
   echo "  ██╔══██╗██╔═══██╗╚══██╔══╝██╔════╝██║██║     ██╔════╝██╔════╝"
@@ -117,6 +209,14 @@ main() {
   echo ""
 
   require_arch
+  require_non_root
+
+  if [[ $IS_WSL -eq 1 ]]; then
+    info "WSL detected – installing CLI packages only (no desktop apps/fonts)."
+  elif [[ $MINIMAL -eq 1 ]]; then
+    info "Minimal mode – installing core packages only."
+  fi
+
   install_yay
   install_packages
   backup_configs
@@ -125,7 +225,12 @@ main() {
   enable_docker
 
   echo ""
-  info "All done! 🎉  Please reboot or re-login to apply all changes."
+  if [[ $IS_WSL -eq 1 ]]; then
+    info "All done! 🎉  Run 'wsl --shutdown' from Windows and reopen the distro to apply all changes."
+    info "Install a Nerd Font (e.g. JetBrainsMono Nerd Font) on Windows for prompt icons."
+  else
+    info "All done! 🎉  Please reboot or re-login to apply all changes."
+  fi
 }
 
 main "$@"
