@@ -21,7 +21,7 @@ alias gs="git status"
 alias gp="git push"
 alias gl="git pull"
 alias ..="cd .."
-alias ..."cd ../.."
+alias ...="cd ../.."
 
 # Starship prompt
 eval "$(starship init zsh)"

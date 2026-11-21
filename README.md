@@ -1,6 +1,6 @@
 # dotfiles
 
-My personal dotfiles for Arch Linux with zsh, Neovim, and development tools.
+My personal dotfiles for Arch Linux (bare metal or WSL) with zsh, Neovim, and development tools.
 
 ## What's Included
 
@@ -19,18 +19,45 @@ Run the install script on a fresh Arch Linux system:
 
 The script will:
 1. Install yay (AUR helper) if not present
-2. Install all packages from `packages.txt`
+2. Install packages from `packages.txt`
 3. Back up existing configs to `~/.config-backup-YYYYMMDD_HHMMSS/`
 4. Symlink dotfiles using GNU Stow
-5. Set zsh as the default shell
-6. Enable Docker
+5. Set `ZDOTDIR` in `~/.zshenv` (so zsh loads `~/.config/zsh/.zshrc`) and make zsh the default shell
+6. Enable Docker (if systemd is running)
+
+### Options
+
+| Flag | Effect |
+|------|--------|
+| `--wsl` | Force WSL mode (only `core` packages, no GUI apps/fonts) |
+| `--desktop` | Force desktop mode even when WSL is detected |
+| `--minimal` | Only install the `core` package group |
+
+### WSL (Arch Linux)
+
+WSL is detected automatically. In WSL mode only the `core` group in `packages.txt`
+is installed, so no desktop apps, fonts or desktop-environment packages (KDE/Plasma,
+Qt, Xorg, ...) are pulled in.
+
+Prerequisites:
+- Run as a **regular user with sudo**, not root (`makepkg` refuses to run as root).
+  Set it as the default user in `/etc/wsl.conf` (`[user]` → `default=<name>`).
+- For Docker inside WSL, enable systemd in `/etc/wsl.conf` (`[boot]` → `systemd=true`)
+  and run `wsl --shutdown`, or use Docker Desktop's WSL integration instead.
+- Install a Nerd Font on **Windows** and select it in Windows Terminal for prompt icons.
+
+### Package groups
+
+`packages.txt` is split with `# @group <name>` markers:
+- `core`: CLI and dev tools, installed everywhere
+- `desktop`: GUI apps and fonts, skipped on WSL and with `--minimal`
 
 ## Structure
 
 ```
 .dotfiles/
 ├── install.sh           # Bootstrap script
-├── packages.txt         # Package list (pacman + AUR)
+├── packages.txt         # Package list (pacman + AUR), grouped core/desktop
 ├── .config/
 │   ├── nvim/           # Neovim config (init.lua + plugins)
 │   └── zsh/            # Zsh config (.zshrc)
@@ -92,6 +119,6 @@ The script will:
 
 ## Requirements
 
-- Arch Linux
+- Arch Linux (bare metal or WSL)
 - sudo access (for pacman/yay)
 - Internet connection

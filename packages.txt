@@ -1,11 +1,19 @@
 # ─────────────────────────────────────────
 #  packages.txt  –  packages to install
 #  Used by install.sh (pacman + AUR via yay)
+#
+#  Packages are grouped with "# @group <name>" markers:
+#    core     – installed everywhere (incl. WSL)
+#    desktop  – GUI apps & fonts, skipped on WSL / with --minimal
 # ─────────────────────────────────────────
+
+# @group core
 
 # ── CLI Essentials ────────────────────────
 git
 zsh
+zsh-autosuggestions
+zsh-syntax-highlighting
 tmux
 neovim
 curl
@@ -26,6 +34,8 @@ npm
 bun
 docker
 docker-compose
+
+# @group desktop
 
 # ── Desktop Apps ─────────────────────────
 ghostty
