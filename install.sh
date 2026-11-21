@@ -174,13 +174,43 @@ setup_zdotdir() {
   fi
 }
 
+zsh_path() {
+  # Prefer a path that is listed in /etc/shells. On Arch /usr/sbin -> /usr/bin,
+  # so `command -v zsh` may return /usr/sbin/zsh, which chsh rejects.
+  local p
+  for p in /usr/bin/zsh /bin/zsh "$(command -v zsh)"; do
+    [[ -x "$p" ]] && grep -qx "$p" /etc/shells 2>/dev/null && {
+      echo "$p"
+      return
+    }
+  done
+  # Nothing listed: register /usr/bin/zsh
+  p=/usr/bin/zsh
+  [[ -x "$p" ]] || p="$(command -v zsh)"
+  echo "$p" | sudo tee -a /etc/shells >/dev/null
+  echo "$p"
+}
+
 set_shell() {
-  if [[ "$SHELL" != "$(which zsh)" ]]; then
-    warn "Changing default shell to zsh…"
-    chsh -s "$(which zsh)"
+  command -v zsh &>/dev/null || {
+    warn "zsh not installed – skipping shell change."
+    return
+  }
+
+  local zsh current
+  zsh="$(zsh_path)"
+  current="$(getent passwd "$USER" | cut -d: -f7)"
+
+  if [[ "$(readlink -f "$current")" == "$(readlink -f "$zsh")" ]]; then
+    info "zsh is already the default shell."
+    return
+  fi
+
+  warn "Changing default shell to $zsh…"
+  if sudo chsh -s "$zsh" "$USER"; then
     info "Shell changed. Re-login to apply."
   else
-    info "zsh is already the default shell."
+    warn "Could not change shell – run manually: chsh -s $zsh"
   fi
 }
 
